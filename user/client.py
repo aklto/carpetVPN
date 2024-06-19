@@ -1,17 +1,19 @@
 import socket
-import ssl
 
 # Конфигурация клиента
-SERVER_ADDRESS = ('104.154.245.161', 8080)
-CERT_FILE = '../server.crt'
+SERVER_ADDRESS = ('35.202.57.44', 8080)
+try:
+    # Создание сокета
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-# Создание сокета
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-context.load_verify_locations(CERT_FILE)
-
-with context.wrap_socket(sock, server_hostname=SERVER_ADDRESS[0])   as ssl_socket:
-    ssl_socket.connect(SERVER_ADDRESS)
-    ssl_socket.send(b"Hello, Server!")
-    data = ssl_socket.recv(1024)
+    print(f"Attempting to connect to {SERVER_ADDRESS}...")
+    sock.settimeout(10)  # Установите таймаут
+    sock.connect(SERVER_ADDRESS)
+    print("Connection established.")
+    sock.send(b"Hello, Server!")
+    data = sock.recv(1024)
     print(f"Received: {data.decode('utf-8')}")
+except Exception as e:
+    print(f"An error occurred: {e}")
+finally:
+    sock.close()
