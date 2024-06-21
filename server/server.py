@@ -1,29 +1,79 @@
 import socket
-import ssl
+import threading
 
-# Конфигурация сервера
-SERVER_ADDRESS = ('0.0.0.0', 8080)
-CERT_FILE = 'server.crt'
-KEY_FILE = 'server.key'
+def handle_client_request(client_socket):
+    print("Received request:\n")
+    request = b''
+    client_socket.setblocking(False)
 
-# Создание сокета
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.bind(SERVER_ADDRESS)
-sock.listen(5)
+    while True:
+        try:
 
-# Настройка SSL
-context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-context.load_cert_chain(certfile=CERT_FILE, keyfile=KEY_FILE)
+            data = client_socket.recv(1024)
+            request = request + data
+            print(f"{data.decode('utf-8')}")
 
-print("Server is listening...")
+        except:
+            break
 
-while True:
-    client_socket, addr = sock.accept()
-    print(f"Connection from {addr}")
+    host, port = extract_host_port_from_request(request)
+    destination_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    destination_socket.connect((host, port))
+    destination_socket.sendall(request)
+    print("Received response:\n")
 
-    with context.wrap_socket(client_socket, server_side=True) as ssl_socket:
-        data = ssl_socket.recv(1024)
-        print(f"Received: {data.decode('utf-8')}")
-        ssl_socket.send(b"Hello, Secure World!")
+    while True:
+        data = destination_socket.recv(1024)
+        print(f"{data.decode('utf-8')}")
 
+        if len(data) > 0:
+            client_socket.sendall(data)
+
+        else:
+            break
+
+    destination_socket.close()
     client_socket.close()
+
+def extract_host_port_from_request(request):
+
+    host_string_start = request.find(b'Host: ') + len(b'Host: ')
+    host_string_end = request.find(b'\r\n', host_string_start)
+    host_string = request[host_string_start:host_string_end].decode('utf-8')
+    webserver_pos = host_string.find("/")
+
+    if webserver_pos == -1:
+        webserver_pos = len(host_string)
+
+    port_pos = host_string.find(":")
+
+    if port_pos == -1 or webserver_pos < port_pos:
+
+        port = 80
+        host = host_string[:webserver_pos]
+
+    else:
+
+        port = int((host_string[(port_pos + 1):])[:webserver_pos - port_pos - 1])
+        host = host_string[:port_pos]
+
+    return host, port
+
+def start_proxy_server():
+    port = 8080
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind(('0.0.0.0', port))
+    server.listen(10)
+    print(f"Proxy server listening on port {port}...")
+
+
+    while True:
+
+        client_socket, addr = server.accept()
+        print(f"Accepted connection from {addr[0]}:{addr[1]}")
+
+        client_handler = threading.Thread(target=handle_client_request, args=(client_socket,))
+        client_handler.start()
+
+if __name__ == "__main__":
+    start_proxy_server()
